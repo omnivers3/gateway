@@ -1,5 +1,4 @@
-#[macro_use]
-extern crate serde_derive;
+// use serde_derive;
 
 #[derive(Serialize, Deserialize, Debug)]
 /// Expected error format from backing apis
@@ -13,8 +12,6 @@ pub struct Message {
 
 #[cfg(test)]
 mod test {
-    extern crate serde_json;
-
     use super::{ Message };
 
     fn valid_error_response(status: u16, timestamp: &str, service: &str, message: &str) -> String {

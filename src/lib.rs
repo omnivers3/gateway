@@ -1,19 +1,25 @@
 // #[macro_use]
 extern crate log;
 extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 extern crate url;
 
 #[cfg(feature = "mockito-enabled")]
 extern crate mockito;
 
-pub extern crate gateway_contracts_v1;
+#[cfg(test)]
+extern crate serde_json;
 
-pub use gateway_contracts_v1 as v1;
+pub mod contracts;
+
+use contracts::v1 as v1;
 
 #[derive(Debug)]
 pub enum Message {
     /// Wrapper for V1 style api error response schema
     V1(v1::Message),
+    /// Fallback for proxy implementations to return simple String error messages
     Unstructured(String)
 }
 
@@ -128,8 +134,6 @@ pub fn parse_url<TPayloadSerde, TMessageSerde>(url_str: &str) -> Result<url::Url
 
 #[cfg(test)]
 mod test {
-    extern crate gateway_reqwest;
-
     use super::{ replace_host, Error, ServiceError };
 
     #[test]
