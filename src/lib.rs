@@ -62,11 +62,17 @@ impl<TPayloadSerde, TMessageSerde> From<url::ParseError> for Error<TPayloadSerde
     }
 }
 
-#[derive(Debug)]
-pub enum Request {
-    /// No config beyond base url
-    Unit,
-}
+
+
+// impl From<Request> for String {
+//     fn from(_req: Request) -> url::Url {
+//         url::Url::parse("http://www.foo.bar").unwrap()
+//     }
+// }
+
+// pub trait Request {
+//     fn get_url_string<TRequest>(svc: &Service, req: TRequest) -> String;
+// }
 
 #[derive(Debug, Default)]
 /// Carries contextual data along with Service errors
@@ -82,13 +88,15 @@ impl<TContext, TPayloadSerde, TMessageSerde> AsRef<Error<TPayloadSerde, TMessage
 }
 
 /// Provides a simple surface for proxying requests back to origin api servers
-pub trait Service<TResult> {
+pub trait Service {
+    type TRequest;
     type TContext;
     type TPayloadSerdeError;
     type TMessageSerdeError;
 
-    fn get(&self, req: Request) -> Result<TResult, ServiceError<Self::TContext, Error<Self::TPayloadSerdeError, Self::TMessageSerdeError>>> where
-        TResult: serde::de::DeserializeOwned + std::fmt::Debug;
+    fn exec<TRequest, TResponse>(&self, req: TRequest) -> Result<TResponse, ServiceError<Self::TContext, Error<Self::TPayloadSerdeError, Self::TMessageSerdeError>>> where
+        TRequest: Into<Self::TRequest> + std::fmt::Debug,
+        TResponse: serde::de::DeserializeOwned + std::fmt::Debug;
 }
 
 #[cfg(feature = "mockito-enabled")]

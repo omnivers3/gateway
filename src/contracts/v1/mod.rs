@@ -1,5 +1,3 @@
-// use serde_derive;
-
 #[derive(Serialize, Deserialize, Debug)]
 /// Expected error format from backing apis
 pub struct Message {
