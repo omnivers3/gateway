@@ -47,6 +47,7 @@ pub enum Error<TPayloadSerde, TMessageSerde> {
     ReadBodyFailed,
     /// API returned a failure, such as invalid HTTP status code
     ResultFailed {
+        payload: String,
         message: MessageResult<TMessageSerde>,
     },
     /// Api call succeeded, e.g. with 200 OK, but payload did not parse successfully
