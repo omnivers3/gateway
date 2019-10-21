@@ -52,6 +52,7 @@ pub enum Error<TPayloadSerde, TMessageSerde> {
     /// Api call succeeded, e.g. with 200 OK, but payload did not parse successfully
     InvalidPayload {
         error: TPayloadSerde,
+        payload: String,
         message: MessageResult<TMessageSerde>,
     },
 }
