@@ -44,6 +44,7 @@ pub enum ServiceResult<TResponse, TServiceError, TErrorSerde> where
 impl<TResponse, TServiceError, TErrorSerde> ServiceResult<TResponse, TServiceError, TErrorSerde> where
     TResponse: Endpoint,
 {
+    /// Converts the ServiceResult into a representative Result pattern
     pub fn as_result(self) -> Result<TResponse::TResponse, (TServiceError, Option<Result<TResponse::TError, TErrorSerde>>)> {
         match self {
             ServiceResult::Ok (response) => Ok (response),
@@ -54,11 +55,21 @@ impl<TResponse, TServiceError, TErrorSerde> ServiceResult<TResponse, TServiceErr
         }
     }
 
+    /// Unwraps the server error component of the ServiceResult if available
+    pub fn server_error<'a>(&'a self) -> Option<&'a TServiceError> {
+        match self {
+            ServiceResult::Ok (_) => return None,
+            ServiceResult::Err (err, _) => Some(err),
+            ServiceResult::Fail (err, _) => Some(err),
+        }
+    }
+
+    /// Unwraps the error that was expected from the service response if available
     pub fn service_error<'a>(&'a self) -> Option<&'a TResponse::TError> {
         match self {
             ServiceResult::Ok (_) => return None,
-            ServiceResult::Fail (_, _) => return None,
             ServiceResult::Err (_, err) => Some(&err),
+            ServiceResult::Fail (_, _) => return None,
         }
     }
 }
