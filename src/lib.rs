@@ -53,6 +53,14 @@ impl<TResponse, TServiceError, TErrorSerde> ServiceResult<TResponse, TServiceErr
             }
         }
     }
+
+    pub fn service_error<'a>(&'a self) -> Option<&'a TResponse::TError> {
+        match self {
+            ServiceResult::Ok (_) => return None,
+            ServiceResult::Fail (_, _) => return None,
+            ServiceResult::Err (_, err) => Some(&err),
+        }
+    }
 }
 
 impl<TResponse, TServiceError, TErrorSerde> Into<Result<TResponse::TResponse, (TServiceError, Option<Result<TResponse::TError, TErrorSerde>>)>> for ServiceResult<TResponse, TServiceError, TErrorSerde> where
