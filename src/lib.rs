@@ -1,8 +1,8 @@
 // #[macro_use]
 extern crate log;
 extern crate serde;
-#[macro_use]
-extern crate serde_derive;
+// #[macro_use]
+// extern crate serde_derive;
 extern crate url;
 
 #[cfg(feature = "mockito-enabled")]
@@ -11,102 +11,145 @@ extern crate mockito;
 #[cfg(test)]
 extern crate serde_json;
 
-pub mod contracts;
+use std::fmt;
 
-use contracts::v1 as v1;
+pub trait Response<TRequest> {
+    type TResponse: serde::de::DeserializeOwned + std::fmt::Debug;
+    type TError: serde::de::DeserializeOwned + std::fmt::Debug;
+    // type TError: std::fmt::Debug;
 
-#[derive(Debug)]
-pub enum Message {
-    /// Wrapper for V1 style api error response schema
-    V1(v1::Message),
-    /// Fallback for proxy implementations to return simple String error messages
-    Unstructured(String)
+    fn to_request(&self) -> TRequest;
 }
 
-impl From<v1::Message> for Message {
-    fn from(err: v1::Message) -> Message {
-        Message::V1(err)
-    }
-}
-
-/// MessageResult is a type that represents either success (Ok) or failure (Err)
+/// ServiceResult is a type that represents either success (Ok) or failure (Err)
 /// where Ok is of type Message and Err is of type TParseError, such as
 /// serde_json::error::Error
-pub type MessageResult<TMessageSerde> = Result<Message, TMessageSerde>;
+// pub type ServiceResult<TErrorSerde> = Result<Message, TErrorSerde>;
 
 #[derive(Debug)]
-pub enum Error<TPayloadSerde, TMessageSerde> {
+/// The set of error types which all service types should be able to represent
+pub enum Error {
     /// Base URL failed to parse
     UrlParseFailed(url::ParseError),
     #[cfg(feature = "mockito-enabled")]
     /// Tried to replace Url host with mockito but failed
     UrlBaseReplacementError(url::ParseError),
-    /// Call to backing service failed
-    RequestFailed,
-    /// Unable to parse api response to extract payload content
-    ReadBodyFailed,
-    /// API returned a failure, such as invalid HTTP status code
-    ResultFailed {
-        payload: String,
-        message: MessageResult<TMessageSerde>,
-    },
-    /// Api call succeeded, e.g. with 200 OK, but payload did not parse successfully
-    InvalidPayload {
-        error: TPayloadSerde,
-        payload: String,
-        message: MessageResult<TMessageSerde>,
-    },
 }
 
-impl<TPayloadSerde, TMessageSerde> From<url::ParseError> for Error<TPayloadSerde, TMessageSerde> {
-    fn from(err: url::ParseError) -> Error<TPayloadSerde, TMessageSerde> {
-        Error::<TPayloadSerde, TMessageSerde>::UrlParseFailed(err)
-    }
+pub trait Endpoint {
+    type TResponse: fmt::Debug + serde::de::DeserializeOwned;
+    type TError: fmt::Debug + serde::de::DeserializeOwned;
+    // type TErrorSerde: fmt::Debug;
 }
 
+pub enum ServiceResult<TResponse, TServiceError, TErrorSerde> where
+    TResponse: Endpoint,
+{
+    Ok (TResponse::TResponse),
+    Err (TServiceError, TResponse::TError),
+    // Fail (TServiceError, Option<TResponse::TErrorSerde>),
+    Fail (TServiceError, Option<TErrorSerde>),
+}
 
-
-// impl From<Request> for String {
-//     fn from(_req: Request) -> url::Url {
-//         url::Url::parse("http://www.foo.bar").unwrap()
+// impl<TResponse, TServiceError> From<ServiceResult<TResponse, TServiceError>> for Result<TResponse::TResponse, (TServiceError, Option<Result<TResponse::TError, TResponse::TErrorSerde>>)> where
+//     TResponse: Endpoint,
+// {
+//     fn from(src: ServiceResult<TResponse, TServiceError>) -> Result<TResponse::TResponse, (TServiceError, Option<Result<TResponse::TError, TResponse::TErrorSerde>>)> {
+        
 //     }
 // }
 
-// pub trait Request {
-//     fn get_url_string<TRequest>(svc: &Service, req: TRequest) -> String;
-// }
-
-#[derive(Debug, Default)]
-/// Carries contextual data along with Service errors
-pub struct ServiceError<TContext, TError> {
-    pub context: TContext,
-    pub error: TError,
-}
-
-impl<TContext, TPayloadSerde, TMessageSerde> AsRef<Error<TPayloadSerde, TMessageSerde>> for ServiceError<TContext, Error<TPayloadSerde, TMessageSerde>> {
-    fn as_ref(&self) -> &Error<TPayloadSerde, TMessageSerde> {
-        &self.error
+impl<TResponse, TServiceError, TErrorSerde> Into<Result<TResponse::TResponse, (TServiceError, Option<Result<TResponse::TError, TErrorSerde>>)>> for ServiceResult<TResponse, TServiceError, TErrorSerde> where
+    TResponse: Endpoint,
+{
+    fn into(self) -> Result<TResponse::TResponse, (TServiceError, Option<Result<TResponse::TError, TErrorSerde>>)> {
+        match self {
+            ServiceResult::Ok (response) => Ok (response),
+            ServiceResult::Err (svc_err, err) => Err ((svc_err, Some(Ok(err)))),
+            ServiceResult::Fail (svc_err, opt_serde_err) => {
+                Err ((svc_err, opt_serde_err.map(|serde_err| Err(serde_err))))
+            }
+        }
     }
 }
 
-/// Provides a simple surface for proxying requests back to origin api servers
-pub trait Service {
-    type TRequest;
-    type TContext;
-    type TPayloadSerdeError;
-    type TMessageSerdeError;
 
-    fn exec<TRequest, TResponse>(&self, req: TRequest) -> Result<TResponse, ServiceError<Self::TContext, Error<Self::TPayloadSerdeError, Self::TMessageSerdeError>>> where
-        TRequest: Into<Self::TRequest> + std::fmt::Debug,
-        TResponse: serde::de::DeserializeOwned + std::fmt::Debug;
+
+// impl<TResponse, TServiceError> std::ops::Try for ServiceResult<TResponse, TServiceError> where
+//     TResponse: Endpoint,
+// {
+//     type Ok = TResponse;
+//     type Error = Option<TResponse::TError>;
+
+//     fn into_result(self) -> Result<Self::Ok, Self::Error> {
+
+//     }
+
+//     fn from_error(src: Self::Error) -> Self {
+
+//     }
+
+//     fn from_ok(src: Self::Ok) -> Self {
+//         ServiceResult::Ok(src)
+//     }
+// }
+
+pub trait Service {
+    /// Defines the request types that can be executed by the implementing service.
+    /// E.g. in an http api variant this could represent Get, Post, Put, etc.
+    type TRequestType;
+    type TServiceError;
+    type TErrorSerde;
+
+    // fn exec<TRequest>(&self, req: TRequest) -> Result<TRequest::TResponse, (Self::TServiceError, <TRequest as Endpoint>::TError)> where
+    fn exec<TRequest>(&self, req: TRequest) -> ServiceResult<TRequest, Self::TServiceError, Self::TErrorSerde> where
+    // fn exec<TRequest, TError>(&self, req: TRequest) -> Result<TRequest::TResponse, TError> where
+        TRequest: Into<Self::TRequestType> + Endpoint + fmt::Debug;
 }
 
+// impl<TError: std::fmt::Debug> From<url::ParseError> for Error<TError> {
+//     fn from(err: url::ParseError) -> Error<TError> {
+//         Error::<TError>::UrlParseFailed(err)
+//     }
+// }
+
+// #[derive(Debug, Default)]
+// /// Carries contextual data along with Service errors
+// pub struct ServiceError<TContext, TError> {
+//     pub context: TContext,
+//     pub error: TError,
+// }
+
+// impl<TContext, TError: std::fmt::Debug> AsRef<Error<TError>> for ServiceError<TContext, Error<TError>> {
+//     fn as_ref(&self) -> &Error<TError> {
+//         &self.error
+//     }
+// }
+
+// pub type ServiceResult<TContext, TResponse, TError> = Result<TResponse, ServiceError<TContext, Error<TError>>>;
+
+// /// Provides a simple surface for proxying requests back to origin api servers
+// pub trait Service {
+//     /// Defines the request types that can be executed by the implementing service.
+//     /// E.g. in an http api variant this could represent Get, Post, Put, etc.
+//     type TRequest;
+//     /// Provides the implementating service the ability to tunnel up specific details
+//     /// of execution that aren't easily abstracted.  E.g. in an http api variant it might
+//     /// carry reqwest specific Errors and Http Request structures.
+//     type TContext;
+
+//     fn exec<TRequest>(&self, req: TRequest) -> Result<TRequest::TResponse, ServiceError<Self::TContext, Error<<TRequest as Response>::TError>>> where
+//         TRequest: Into<Self::TRequest> + Response + std::fmt::Debug;
+//         // TRequest: Into<Self::TRequest> + Response + std::fmt::Debug;
+//         // TResponse: serde::de::DeserializeOwned + std::fmt::Debug;
+// }
+
 #[cfg(feature = "mockito-enabled")]
-fn mockito<TPayloadSerde, TMessageSerde>(url_str: url::Url) -> Result<url::Url, Error<TPayloadSerde, TMessageSerde>> {
+fn mockito(url_str: url::Url) -> Result<url::Url, Error> {
     let mockito_base = url::Url::parse(&mockito::server_url())
-        .map_err(|err| Error::from(err))?;
+        .map_err(Error::UrlParseFailed)?;//|err| Error::from(err))?;
     replace_host(url_str, mockito_base)
-        .map_err(|err| Error::<TPayloadSerde, TMessageSerde>::UrlBaseReplacementError(err))
+        .map_err(|err| Error::UrlBaseReplacementError(err))
 }
 
 /// Swaps host, scheme and port of the dest into the target while preserving the remaining path and query semantics
@@ -128,14 +171,14 @@ pub fn replace_host(src: url::Url, dest: url::Url) -> Result<url::Url, url::Pars
 }
 
 /// Wraps a call to Url::parse with mockito override to the base in cfg(test) mode
-pub fn parse_url<TPayloadSerde, TMessageSerde>(url_str: &str) -> Result<url::Url, Error<TPayloadSerde, TMessageSerde>> {
+pub fn parse_url(url_str: &str) -> Result<url::Url, Error> {
     #[cfg(not(feature = "mockito-enabled"))]
     {
-        url::Url::parse(url_str).map_err(|err| err.into())
+        url::Url::parse(url_str).map_err(Error::UrlParseFailed)
     }
     #[cfg(feature = "mockito-enabled")]
     {
-        url::Url::parse(url_str).map_err(|err| err.into()).and_then(|url| {
+        url::Url::parse(url_str).map_err(Error::UrlParseFailed).and_then(|url| {
             println!("Replace base: {:?}", url);
             mockito(url)
         })
@@ -144,19 +187,19 @@ pub fn parse_url<TPayloadSerde, TMessageSerde>(url_str: &str) -> Result<url::Url
 
 #[cfg(test)]
 mod test {
-    use super::{ replace_host, Error, ServiceError };
+    use super::{ replace_host };//, Error, ServiceError };
 
-    #[test]
-    fn match_service_error_to_error_as_ref() {
-        let ctx = ServiceError {
-            context: (),
-            error: Error::<(), ()>::RequestFailed,
-        };
-        match ctx.as_ref() {
-            Error::RequestFailed => {},
-            _ => assert!(false, "boo"),
-        }
-    }
+    // #[test]
+    // fn match_service_error_to_error_as_ref() {
+    //     let ctx = ServiceError {
+    //         context: (),
+    //         error: Error::<()>::ServiceError(()),
+    //     };
+    //     match ctx.as_ref() {
+    //         Error::ServiceError(_) => {},
+    //         _ => assert!(false, "baz"),
+    //     }
+    // }
 
     #[test]
     fn replace_url_host() {
