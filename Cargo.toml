@@ -10,7 +10,6 @@ env_logger = "0.7.1"
 log = "0.4.8"
 mockito = "0.21.0"
 serde = "1.0"
-serde_derive = "1.0"
 url = { git = "https://github.com/servo/rust-url" }
 
 [features]
