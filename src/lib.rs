@@ -41,10 +41,10 @@ pub enum ServiceResult<TResponse, TServiceError, TErrorSerde> where
     Fail (TServiceError, Option<TErrorSerde>),
 }
 
-impl<TResponse, TServiceError, TErrorSerde> Into<Result<TResponse::TResponse, (TServiceError, Option<Result<TResponse::TError, TErrorSerde>>)>> for ServiceResult<TResponse, TServiceError, TErrorSerde> where
+impl<TResponse, TServiceError, TErrorSerde> ServiceResult<TResponse, TServiceError, TErrorSerde> where
     TResponse: Endpoint,
 {
-    fn into(self) -> Result<TResponse::TResponse, (TServiceError, Option<Result<TResponse::TError, TErrorSerde>>)> {
+    pub fn as_result(self) -> Result<TResponse::TResponse, (TServiceError, Option<Result<TResponse::TError, TErrorSerde>>)> {
         match self {
             ServiceResult::Ok (response) => Ok (response),
             ServiceResult::Err (svc_err, err) => Err ((svc_err, Some(Ok(err)))),
@@ -52,6 +52,14 @@ impl<TResponse, TServiceError, TErrorSerde> Into<Result<TResponse::TResponse, (T
                 Err ((svc_err, opt_serde_err.map(|serde_err| Err(serde_err))))
             }
         }
+    }
+}
+
+impl<TResponse, TServiceError, TErrorSerde> Into<Result<TResponse::TResponse, (TServiceError, Option<Result<TResponse::TError, TErrorSerde>>)>> for ServiceResult<TResponse, TServiceError, TErrorSerde> where
+    TResponse: Endpoint,
+{
+    fn into(self) -> Result<TResponse::TResponse, (TServiceError, Option<Result<TResponse::TError, TErrorSerde>>)> {
+        self.as_result()
     }
 }
 
