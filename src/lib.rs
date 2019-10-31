@@ -11,13 +11,6 @@ extern crate serde_json;
 
 use std::fmt;
 
-pub trait Response<TRequest> {
-    type TResponse: serde::de::DeserializeOwned + std::fmt::Debug;
-    type TError: serde::de::DeserializeOwned + std::fmt::Debug;
-
-    fn to_request(&self) -> TRequest;
-}
-
 #[derive(Debug)]
 /// The set of error types which all service types should be able to represent
 pub enum Error {
