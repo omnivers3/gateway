@@ -1,7 +1,5 @@
 // #[macro_use]
-extern crate log;
-extern crate serde;
-extern crate url;
+// extern crate log;
 
 #[cfg(feature = "mockito-enabled")]
 extern crate mockito;
@@ -29,7 +27,10 @@ pub trait Endpoint {
     type TError: fmt::Debug + serde::de::DeserializeOwned;
 }
 
-/// ServiceResult
+/// ServiceResult encapsulates the ways an api request can fail.
+/// Ok (TResponse::TResponse) - Contains the expected result message when the call was fully successful
+/// Err (TServiceError, TResponse::TError) - Carries a tuple with errors for the provider's context as well as the expected error type
+/// Fail (TServiceError, Option<TErrorSerde>) - Indicates that the call failed with the provider's context and an optional message with serde specific context
 pub enum ServiceResult<TResponse, TServiceError, TErrorSerde> where
     TResponse: Endpoint,
 {
@@ -86,7 +87,12 @@ pub trait Service {
     /// Defines the request types that can be executed by the implementing service.
     /// E.g. in an http api variant this could represent Get, Post, Put, etc.
     type TRequestType;
+    /// The types of errors the service implementation uses to represent it's failure cases.
+    /// These might represent the potential error stages of an HTTP REST call for example.
     type TServiceError;
+    /// The kind of deserialization errors that this service will return when unable to parse the
+    /// expected type for either return value or error message.
+    /// This would likely be serde_json::Error for a JSON based REST api call for example.
     type TErrorSerde;
 
     fn exec<TRequest>(&self, req: TRequest) -> ServiceResult<TRequest, Self::TServiceError, Self::TErrorSerde> where
