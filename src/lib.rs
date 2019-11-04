@@ -31,27 +31,37 @@ pub trait Endpoint {
 /// Ok (TResponse::TResponse) - Contains the expected result message when the call was fully successful
 /// Err (TServiceError, TResponse::TError) - Carries a tuple with errors for the provider's context as well as the expected error type
 /// Fail (TServiceError, Option<TErrorSerde>) - Indicates that the call failed with the provider's context and an optional message with serde specific context
-pub enum ServiceResult<TResponse, TServiceError, TErrorSerde> where
+pub enum ServiceResult<TResponse, TServiceError, TErrorSerde>
+where
     TResponse: Endpoint,
 {
     /// Service call succeeded and the result was successfully parsed into the expected type
-    Ok (TResponse::TResponse),
+    Ok(TResponse::TResponse),
     /// Service call failed and the returned error message was successfully parsed into the expected type
-    Err (TServiceError, TResponse::TError),
+    Err(TServiceError, TResponse::TError),
     /// Service call failed and was unable to deserialize the returned error context into the expected type
-    Fail (TServiceError, Option<TErrorSerde>),
+    Fail(TServiceError, Option<TErrorSerde>),
 }
 
-impl<TResponse, TServiceError, TErrorSerde> ServiceResult<TResponse, TServiceError, TErrorSerde> where
+impl<TResponse, TServiceError, TErrorSerde> ServiceResult<TResponse, TServiceError, TErrorSerde>
+where
     TResponse: Endpoint,
 {
     /// Converts the ServiceResult into a representative Result pattern
-    pub fn as_result(self) -> Result<TResponse::TResponse, (TServiceError, Option<Result<TResponse::TError, TErrorSerde>>)> {
+    pub fn as_result(
+        self,
+    ) -> Result<
+        TResponse::TResponse,
+        (
+            TServiceError,
+            Option<Result<TResponse::TError, TErrorSerde>>,
+        ),
+    > {
         match self {
-            ServiceResult::Ok (response) => Ok (response),
-            ServiceResult::Err (svc_err, err) => Err ((svc_err, Some(Ok(err)))),
-            ServiceResult::Fail (svc_err, opt_serde_err) => {
-                Err ((svc_err, opt_serde_err.map(|serde_err| Err(serde_err))))
+            ServiceResult::Ok(response) => Ok(response),
+            ServiceResult::Err(svc_err, err) => Err((svc_err, Some(Ok(err)))),
+            ServiceResult::Fail(svc_err, opt_serde_err) => {
+                Err((svc_err, opt_serde_err.map(|serde_err| Err(serde_err))))
             }
         }
     }
@@ -59,26 +69,44 @@ impl<TResponse, TServiceError, TErrorSerde> ServiceResult<TResponse, TServiceErr
     /// Unwraps the server error component of the ServiceResult if available
     pub fn server_error<'a>(&'a self) -> Option<&'a TServiceError> {
         match self {
-            ServiceResult::Ok (_) => return None,
-            ServiceResult::Err (err, _) => Some(err),
-            ServiceResult::Fail (err, _) => Some(err),
+            ServiceResult::Ok(_) => return None,
+            ServiceResult::Err(err, _) => Some(err),
+            ServiceResult::Fail(err, _) => Some(err),
         }
     }
 
     /// Unwraps the error that was expected from the service response if available
     pub fn service_error<'a>(&'a self) -> Option<&'a TResponse::TError> {
         match self {
-            ServiceResult::Ok (_) => return None,
-            ServiceResult::Err (_, err) => Some(&err),
-            ServiceResult::Fail (_, _) => return None,
+            ServiceResult::Ok(_) => return None,
+            ServiceResult::Err(_, err) => Some(&err),
+            ServiceResult::Fail(_, _) => return None,
         }
     }
 }
 
-impl<TResponse, TServiceError, TErrorSerde> Into<Result<TResponse::TResponse, (TServiceError, Option<Result<TResponse::TError, TErrorSerde>>)>> for ServiceResult<TResponse, TServiceError, TErrorSerde> where
+impl<TResponse, TServiceError, TErrorSerde>
+    Into<
+        Result<
+            TResponse::TResponse,
+            (
+                TServiceError,
+                Option<Result<TResponse::TError, TErrorSerde>>,
+            ),
+        >,
+    > for ServiceResult<TResponse, TServiceError, TErrorSerde>
+where
     TResponse: Endpoint,
 {
-    fn into(self) -> Result<TResponse::TResponse, (TServiceError, Option<Result<TResponse::TError, TErrorSerde>>)> {
+    fn into(
+        self,
+    ) -> Result<
+        TResponse::TResponse,
+        (
+            TServiceError,
+            Option<Result<TResponse::TError, TErrorSerde>>,
+        ),
+    > {
         self.as_result()
     }
 }
@@ -95,33 +123,32 @@ pub trait Service {
     /// This would likely be serde_json::Error for a JSON based REST api call for example.
     type TErrorSerde;
 
-    fn exec<TRequest>(&self, req: TRequest) -> ServiceResult<TRequest, Self::TServiceError, Self::TErrorSerde> where
+    fn exec<TRequest>(
+        &self,
+        req: TRequest,
+    ) -> ServiceResult<TRequest, Self::TServiceError, Self::TErrorSerde>
+    where
         TRequest: Into<Self::TRequestType> + Endpoint + fmt::Debug;
 }
 
 #[cfg(feature = "mockito-enabled")]
 fn mockito(url_str: url::Url) -> Result<url::Url, Error> {
-    let mockito_base = url::Url::parse(&mockito::server_url())
-        .map_err(Error::UrlParseFailed)?;
-    replace_host(url_str, mockito_base)
-        .map_err(|err| Error::UrlBaseReplacementError(err))
+    let mockito_base = url::Url::parse(&mockito::server_url()).map_err(Error::UrlParseFailed)?;
+    replace_host(url_str, mockito_base).map_err(|err| Error::UrlBaseReplacementError(err))
 }
 
 /// Swaps host, scheme and port of the dest into the target while preserving the remaining path and query semantics
 pub fn replace_host(src: url::Url, dest: url::Url) -> Result<url::Url, url::ParseError> {
     let mut src = src;
     match dest.host() {
-        None => {},
-        Some (host) => {
+        None => {}
+        Some(host) => {
             let host = format!("{}", host);
-            src
-                .set_host(Some(&host))?;
+            src.set_host(Some(&host))?;
         }
     }
     src.set_scheme(dest.scheme()).unwrap();
-    dest
-        .port()
-        .map(|port| src.set_port(Some(port)));
+    dest.port().map(|port| src.set_port(Some(port)));
     Ok(src)
 }
 
@@ -133,16 +160,18 @@ pub fn parse_url(url_str: &str) -> Result<url::Url, Error> {
     }
     #[cfg(feature = "mockito-enabled")]
     {
-        url::Url::parse(url_str).map_err(Error::UrlParseFailed).and_then(|url| {
-            println!("Replace base: {:?}", url);
-            mockito(url)
-        })
+        url::Url::parse(url_str)
+            .map_err(Error::UrlParseFailed)
+            .and_then(|url| {
+                println!("Replace base: {:?}", url);
+                mockito(url)
+            })
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::{ replace_host };
+    use super::replace_host;
 
     #[test]
     fn replace_url_host() {

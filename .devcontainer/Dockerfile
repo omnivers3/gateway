@@ -1,4 +1,4 @@
-FROM rust:1.35
+FROM rust:1.38-stretch
 
 ENV CONTAINER_IMAGE_VER=v1.0.0
 

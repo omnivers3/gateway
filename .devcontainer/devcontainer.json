@@ -1,5 +1,5 @@
 {
-	"name": "Rust",
+	"name": "Omnivers3 - Gateway",
 	"dockerFile": "Dockerfile",
 	// Uncomment the next line if you want to publish any ports.
 	// "appPort": [],
