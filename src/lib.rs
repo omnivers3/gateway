@@ -133,8 +133,11 @@ pub trait Service {
 
 #[cfg(feature = "mockito-enabled")]
 fn mockito(url_str: url::Url) -> Result<url::Url, Error> {
-    let mockito_base = url::Url::parse(&mockito::server_url()).map_err(Error::UrlParseFailed)?;
-    replace_host(url_str, mockito_base).map_err(|err| Error::UrlBaseReplacementError(err))
+    let mockito_base = url::Url::parse(&mockito::server_url())
+        .map_err(Error::UrlParseFailed)?;
+    println!("MOCKITO ENABLED - REPLACING [{:?}] with [{:?}]", url_str, mockito_base);
+    replace_host(url_str, mockito_base)
+        .map_err(|err| Error::UrlBaseReplacementError(err))
 }
 
 /// Swaps host, scheme and port of the dest into the target while preserving the remaining path and query semantics
