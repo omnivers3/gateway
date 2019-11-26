@@ -16,5 +16,6 @@ url = { git = "https://github.com/servo/rust-url" }
 mockito-enabled = []
 
 [dev-dependencies]
+pretty_assertions = "0.6.1"
 serde = "1.0"
 serde_json = "1.0"

@@ -7,6 +7,10 @@ extern crate mockito;
 #[cfg(test)]
 extern crate serde_json;
 
+#[cfg(test)]
+#[macro_use]
+extern crate pretty_assertions;
+
 use std::fmt;
 
 #[derive(Debug)]
@@ -175,6 +179,8 @@ pub fn parse_url(url_str: &str) -> Result<url::Url, Error> {
 #[cfg(test)]
 mod test {
     use super::replace_host;
+    use pretty_assertions::{ assert_eq };
+    
 
     #[test]
     fn replace_url_host() {
